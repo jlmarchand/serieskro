@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Estimations de tendances globale et saisonnière</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Marchand Jean-Louis" />
+    <meta name="date" content="2022-10-03" />
+    <script src="TP1_files/header-attrs-2.10/header-attrs.js"></script>
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Estimations de tendances globale et saisonnière
+### Marchand Jean-Louis
+### 10/03/2022
+
+---
+
+
+
+
+
+
+# Accidents
+.pull-left[
+- chargement des paquets
+
+```r
+library(caschrono)
+library(forecast)
+```
+- les deux concernent des outils pour l'étude des séries temporelles, les données proviennent du premier, nous utilisons ensuite la fonction `forecast::ggtsdisplay()`
+
+```r
+data(m30)
+```
+- ces données sont au format d'une série temporelle où chaque valeur est étiquetée par une date
+]
+.pull-right[
+
+```r
+m30 %&gt;% 
+  ggtsdisplay(
+    plot.type = "scatter"
+    )
+```
+
+![](TP1_files/figure-html/unnamed-chunk-3-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Estimation
+
+.pull-left[
+- à la lecture du chronogramme, une décroissance globale apparaît ainsi qu'une saisonnalité annuelle avec des pics mesurés les mois d'été
+- ces deux aspects transparaissent encore sur les auto-corrélations avec des pics fortement positifs, et un schéma périodique de période 12
+- regardons les séries différenciées
+]
+.pull-right[
+
+```r
+m30 %&gt;% 
+  ggtsdisplay(
+    plot.type = "scatter"
+    )
+```
+
+![](TP1_files/figure-html/unnamed-chunk-4-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Séries différenciées
+.pull-left[
+- la série présentant une décroissance,  il faudra estimer au moins une fonction affine, regardons directement la série différenciée deux fois pour voir si il est raisonnable de l'imaginer centrée
+
+```r
+m30 %&gt;% 
+  diff(
+    differences = 2
+    ) %&gt;% 
+  ggtsdisplay(
+    plot.type = "scatter"
+    )
+```
+]
+.pull-right[
+&lt;img src="TP1_files/figure-html/unnamed-chunk-6-1.png" style="display: block; margin: auto;" /&gt;
+]
+- il ne semble subsister qu'une saisonnalité, c'est confirmé par les auto-corrélations où n'apparaissent plus de fortes valeurs successives sur les premiers décalages, nous allons  proposer une tendance affine
+
+---
+
+# Confirmation des choix
+.pull-left[
+- création de la série lissée
+
+```r
+lissage &lt;- c(.5,rep(1,11),.5)/12
+serie_lissee &lt;- m30 %&gt;% 
+  stats::filter(
+    filter = lissage, 
+    sides = 2)
+ggtsdisplay(serie_lissee, plot.type = "scatter")
+```
+- la décroissance linéaire saute aux yeux, l'auto-corrélation confirme la disparition de saisonnalité et encourage le choix d'une tendance polynomiale
+]
+.pull-right[
+![](TP1_files/figure-html/unnamed-chunk-8-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Estimation par régression linéaire
+.pull-left[
+- estimation par MCO
+
+```r
+t &lt;- 1:length(m30)
+x &lt;- outer(t,1:6)*(pi/6)
+df &lt;- data.frame(m30, t, cos(x), sin(x[,-6]))
+m30_lm &lt;- lm(data = df, m30 ~ .)
+```
+
+&lt;img src="TP1_files/figure-html/unnamed-chunk-10-1.png" width="400px" height="300px" /&gt;
+]
+
+.pull-right[
+- étude des résidus
+![](TP1_files/figure-html/unnamed-chunk-11-1.png)&lt;!-- --&gt;
+]
+---
+
+# Commandes de champagne
+.pull-left[
+- même problème d'évolution d'amplitude
+
+```r
+data("champa.ts")
+```
+![](TP1_files/figure-html/unnamed-chunk-13-1.png)&lt;!-- --&gt;
+]
+.pull-right[
+- un passage au logarithme semble compenser le phénomène
+
+```r
+logchamp.ts &lt;- log(champa.ts)
+```
+![](TP1_files/figure-html/unnamed-chunk-15-1.png)&lt;!-- --&gt;
+]
+
+---
+
+# Retrait de la saisonnalité
+.pull-left[
+
+```r
+serie_lissee2 &lt;- logchamp.ts %&gt;% 
+  diff(lag = 12)
+```
+
+![](TP1_files/figure-html/unnamed-chunk-17-1.png)&lt;!-- --&gt;
+].pull-right[
+
+```r
+serie_lissee3 &lt;- logchamp.ts %&gt;% 
+  stats::filter(filter=lissage,sides = 2)
+```
+
+![](TP1_files/figure-html/unnamed-chunk-19-1.png)&lt;!-- --&gt;
+]
+---
+# Proposition de degré
+.pull-left[
+
+```r
+serie_lissee2  %&gt;% 
+  diff(differences = 4) %&gt;% 
+  ggtsdisplay(plot.type = "scatter")
+```
+
+![](TP1_files/figure-html/unnamed-chunk-20-1.png)&lt;!-- --&gt;
+]
+.pull-right[
+
+```r
+serie_lissee2  %&gt;% 
+  diff(differences = 3) %&gt;% 
+  ggtsdisplay(plot.type = "scatter")
+```
+
+![](TP1_files/figure-html/unnamed-chunk-21-1.png)&lt;!-- --&gt;
+]
+---
+
+# Estimation par régression linéaire
+.pull-left[
+- estimation par MCO
+
+```r
+t &lt;- 1:length(logchamp.ts)
+x &lt;- outer(t,1:6)*(pi/6)
+df &lt;- data.frame(logchamp = logchamp.ts, t, t^2, t^3, t^4, cos(x), sin(x[,-6]))
+champ_lm &lt;- lm(data = df, logchamp ~ .)
+```
+
+&lt;img src="TP1_files/figure-html/unnamed-chunk-23-1.png" width="400px" height="300px" /&gt;
+]
+.pull-right[
+- étude des résidus
+![](TP1_files/figure-html/unnamed-chunk-24-1.png)&lt;!-- --&gt;
+]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create();
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
